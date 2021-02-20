@@ -26,8 +26,8 @@ train_df <- fread(file.path(data_dir, "TrainingWiDS2021_cleaned.csv"))
 train_df$diabetes_mellitus <- factor(train_df$diabetes_mellitus, levels=c('nodiabetes','diabetes'), labels=c('nodiabetes','diabetes'))
 target_var = 'diabetes_mellitus'
 
-###------------------------- EXPLORATIVE ------------
-### Select variables
+### Additional reprocessing and variable selection
+### FIXME do proper preprocessing and cleaning, same for train and test data
 preprocess=TRUE ## Preprocessing handled in train function using caret
 if(preprocess){
   codebook <- fread(file.path(data_dir, "DataDictionaryWiDS2021.csv"))
@@ -67,51 +67,36 @@ myControl <- trainControl(
 )
 
 ### --------------------
-###  GLM model
+###  Run and compare different model
+### Note random Forest takes very long
 ### --------------------
-glm_model <- train(
+TEST=TRUE
+### Select preprocessing steps
+preprocessing=c("zv","medianImpute")
+
+methods = c("glm","glmnet","ranger")
+if(TEST)methods =methods[1]
+
+model_list <- list()
+for( method in methods){
+#method=methods[1]
+
+  model <- train(
   x = diabetes_mellitus_x,
   y = diabetes_mellitus_y,
   metric = "ROC",
-  method = "glm",
-  trControl =myControl,
-  preProcess = c("zv","medianImpute")
-)
-
-glm_model
-plot(glm_model)
-p = predict(glm_model, train_df)
-confusionMatrix(p, train_df$diabetes_mellitus)
-
-### Fit baseline model
-set.seed(342)
-glmnet_model <- train(
-  x = diabetes_mellitus_x,
-  y = diabetes_mellitus_y,
-  metric = "ROC",
-  method = "glmnet",
+  method = method,
   trControl = myControl,
-  preProcess = c("zv","knnImpute","pca") # "medianImpute"
+  preProcess = preprocessing
 )
-glmnet_model
-plot(glmnet_model)
-plot(glmnet_model$finalModel)
+  model
+  plot(model)
+  model_list[[method]] <- model
+  p = predict(model, train_df)
+  confusionMatrix(p, train_df$diabetes_mellitus)
+}
 
-### Fit randomForestModel
-ranger_model <- train(
-  x = diabetes_mellitus_x,
-  y = diabetes_mellitus_y,
-  metric = "ROC",
-  method = "ranger",
-  trControl = myControl,
-  preProcess = c("zv","nzv","knnImpute","pca") # "medianImpute"
-)
-ranger_model
-plot(ranger_model)
-plot(ranger_model$finalModel)
-
-#### Compare models
-model_list <- list("glmnet" = glmnet_model, "ranger" = ranger_model)
+#### Compare models and summarize/visualize results
 # Pass model_list to resamples(): resamples
 resamp = resamples(model_list)
 # Summarize the results
@@ -119,10 +104,15 @@ summary(resamp)
 dotplot(resamp, metric="ROC")
 xyplot(resamp, metric="ROC" )
 
-
 #### Make predictions
+final_model = glm_model
 test_df <- fread(file.path(data_dir, "UnlabeledWiDS2021.csv"))
-test_dat = test_df %>% select_at(c("encounter_id",selected_predictors))
-submit_df <- f_save_submission_csv(test_dat, glm_model)
-table(submit_df$diabetes_mellitus)
 
+## Load and clean test data
+test_dat = test_df %>% select_at(c("encounter_id",selected_predictors))
+
+### FIXME do proper preprocessing and cleaning, same for train and test data
+
+## Make predictions and save csv
+submit_df <- f_save_submission_csv(test_dat, final_model)
+table(submit_df$diabetes_mellitus)

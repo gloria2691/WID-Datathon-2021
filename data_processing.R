@@ -30,7 +30,9 @@ cols_not_exist <- which(!((unique(codebook$variable_name)) %in% (colnames(train_
 codebook <- codebook %>% filter(variable_name != vars_not_exist)
 if(VIEW)str(codebook)
 
-###-------- EDA AND CLEANING ---------------------
+###-------- PREPROCESSING AND DATA CLEANING ---------------------
+### FIXME do proper preprocessing and cleaning, same for train and test data
+
 dim(train_df)
 colnames(train_df)
 
@@ -66,7 +68,6 @@ df_summary_stats <- train_df_clean %>%
 df_variances <- df_summary_stats %>% filter(metric=="var" ) %>% arrange(value)
 summary(df_variances$value)
 ggplot(data=df_variances)+geom_point(aes(x=value, y=value, group = col))
-
 
 ### Target variable
 train_df_clean$diabetes_mellitus <- factor(train_df_clean$diabetes_mellitus, levels=c(0,1), labels=c('nodiabetes','diabetes'))
