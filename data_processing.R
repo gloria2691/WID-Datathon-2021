@@ -15,7 +15,8 @@ source(file.path("functions.R"))
 
 # Define directories
 getwd()
-data_dir <- list.files(getwd(), "download_dat")
+data_dir <- file.path(getwd(), "download_dat")
+if(!exists(data_dir))print("Data dir 'download_dat' with datathon data not found")
 list.files(data_dir)
 
 ### Load data
