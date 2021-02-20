@@ -90,3 +90,22 @@ p_bar_by_target <- function(dat=train_df,
 return(pbar)
 }
 
+f_save_submission_csv <- function(test_dat, final_model, fname="", SAVE_DIR=""){
+  test_dat$diabetes_mellitus = predict(final_model, test_dat)
+  submit_df <- test_dat %>%  select(encounter_id, diabetes_mellitus)
+  if("" %in% unique(test_dat$diabetes_mellitus)){
+  test_dat$diabetes_mellitus <- factor(test_dat$diabetes_mellitus,
+                                    levels=c("nodiabetes","diabetes"),
+                                    labels=c(0,1))
+  }
+  #table(submit_df$diabetes_mellitus)
+  if(SAVE_DIR==""){
+    SAVE_DIR <- file.path(getwd(),"submit_csv")
+  }
+
+  if(!dir.exists(SAVE_DIR))dir.create(SAVE_DIR)
+  if(fname=="")fname=paste0(gsub("-","",Sys.Date()),"_mr_SubmissionWiDS2021.csv")
+  fwrite(submit_df,file.path(SAVE_DIR,fname))
+  print(paste0("Submission csv saved under ", file.path(SAVE_DIR,fname)))
+  return(submit_df)
+}
