@@ -6,82 +6,113 @@
 ###----------------------------------------
 
 ### Load packages
-library(tidyverse)
-library(data.table)
-library(caret)
-library(caTools)
+library(tidyverse) # data handling using pipes
+library(data.table) # faster reading of csv files
+library(caret)   # machin learning package
+library(caTools) # confusion matrix table
+library(ranger) # faster implementation of randomForest
 
 ### Custom settings
 VIEW = FALSE  #TRUE
 source(file.path("functions.R"))
 
+# Define directories
+getwd()
+data_dir <- list.files(getwd(), "download_dat")
+list.files(data_dir)
+
 ### Load data
-codebook <- fread(file.path(data_dir, "DataDictionaryWiDS2021.csv"))
-colnames(codebook) <- gsub(" ", "_", tolower(colnames(codebook)))
-cols_not_exist <- which(!((unique(codebook$variable_name)) %in% (colnames(train_df))))
-(vars_not_exist <- unique(codebook$variable_name)[cols_not_exist])
-codebook <- codebook %>% filter(variable_name != vars_not_exist)
-cols_cat <- f_cols_by_cat(codebook)
+train_df <- fread(file.path(data_dir, "TrainingWiDS2021_cleaned.csv"))
+train_df$diabetes_mellitus <- factor(train_df$diabetes_mellitus, levels=c('nodiabetes','diabetes'), labels=c('nodiabetes','diabetes'))
+target_var = 'diabetes_mellitus'
 
-train_df <- fread(file.path(data_dir, "TrainingWiDS2021.csv"))
-test_df <- fread(file.path(data_dir, "UnlabeledWiDS2021.csv"))
+### Additional reprocessing and variable selection
+### FIXME do proper preprocessing and cleaning, same for train and test data
+preprocess=TRUE ## Preprocessing handled in train function using caret
+if(preprocess){
+  codebook <- fread(file.path(data_dir, "DataDictionaryWiDS2021.csv"))
+  colnames(codebook) <- gsub(" ", "_", tolower(colnames(codebook)))
+  cols_not_exist <- which(!((unique(codebook$variable_name)) %in% (colnames(train_df))))
+  (vars_not_exist <- unique(codebook$variable_name)[cols_not_exist])
+  codebook <- codebook %>% filter(variable_name != vars_not_exist)
+  cols_cat <- f_cols_by_cat(codebook)
+  demographic = c("age","bmi","gender","ethnicity")
+  comorbidity = cols_cat$apachecomorbidity
+  #lab = c()
 
-### Simple caret example (testing)
-#target_var = 'diabetes_mellitus'
-demographic = c("age","bmi","gender","ethnicity")
-comorbidity = cols_cat$apachecomorbidity
-#lab = c()
+  selected_predictors = c(demographic, comorbidity) # cols_intstr$numeric
+  train_df = train_df %>% select_at(c(selected_predictors, target_var)) # %>% na.omit()
+   }
 
-selected_predictors = c(demographic, comorbidity) # cols_intstr$numeric
-train_df_sub = train_df %>% select_at(c(selected_predictors, target_var)) %>% na.omit()
-
-###------------------------- EXPLORATIVE ------------
-### Take another subset of train dataset
-useTRAIN = TRUE
-if(useTRAIN){
-  ### Split train dataset into two, to assess model performance before making predictions on the unlabelled dataset
-  split <- round(nrow(train_df_sub) * 0.80)
-  train_dat <- train_df_sub[1:split, ]
-  test_dat <- train_df_sub[(split + 1):nrow(train_df_sub), ]
-}else{
-  train_dat = train_df_sub
-  test_dat = test_df %>% select_at(selected_predictors) %>% na.omit()
-}
-
-### Fit glm model
-model <- glm(diabetes_mellitus ~ .,family = "binomial", train_dat)
-### Make predictions on the test dataset
-p <- predict(model, test_dat)
-### Calculate Squared mean error for assessing performance
-if(useTRAIN)sqrt(mean((p - test_dat[["diabetes_mellitus"]])^2))
-# Create 'confusion matrix' (false positives, false negatives, true positives, true negatives)
-#diab_or_nodiab <- ifelse(p > 0.5, 1, 0)
-#p_class <- factor(diab_or_nodiab, levels = levels(test_dat[["diabetes_mellitus"]]))
-#confusionMatrix(p_class, test_dat[["diabetes_mellitus"]])
-#colAUC(p, test_dat[["diabetes_mellitus"]], plotROC = TRUE)
-
+dim(train_df)
+diabetes_mellitus_x <- train_df %>% select(-diabetes_mellitus)
+diabetes_mellitus_y <- train_df %>% select(diabetes_mellitus)
+diabetes_mellitus_y <- diabetes_mellitus_y$diabetes_mellitus
 
 ### Caret package
-useCaret=FALSE ### not working yet!
-if(useCaret){
-  # Create trainControl object: myControl
+### Get information about available methods
+names(getModelInfo())
+### Get information about preprocessing options
+?preProcess
+
+# Create custom indices: myFolds
+myFolds <- createFolds(diabetes_mellitus_y, k = 5)
+# Create reusable trainControl object: myControl
 myControl <- trainControl(
-  method = "cv",
-  number = 10,
   summaryFunction = twoClassSummary,
-  classProbs = TRUE,
-  verboseIter = TRUE
+  classProbs = TRUE, # IMPORTANT!
+  verboseIter = TRUE,
+  savePredictions = TRUE,
+  index = myFolds
 )
 
-# Train glm with custom trainControl: model
-train_dat[["diabetes_mellitus_fct"]] = factor(train_dat[["diabetes_mellitus"]] , labels=c("No","Yes"))
-model <- train(
-  diabetes_mellitus_fct ~ .,
-  train_dat,
-  method = "glm",
-  trControl = myControl
+### --------------------
+###  Run and compare different model
+### Note random Forest takes very long
+### --------------------
+TEST=TRUE
+### Select preprocessing steps
+preprocessing=c("zv","medianImpute")
+
+methods = c("glm","glmnet","ranger")
+if(TEST)methods =methods[1]
+
+model_list <- list()
+for( method in methods){
+#method=methods[1]
+
+  model <- train(
+  x = diabetes_mellitus_x,
+  y = diabetes_mellitus_y,
+  metric = "ROC",
+  method = method,
+  trControl = myControl,
+  preProcess = preprocessing
 )
-p <- predict(model, train_dat)
-#colAUC(p, train_dat[["diabetes_mellitus"]], plotROC = TRUE)
-#cbind(p, train_dat[["diabetes_mellitus_fct"]])
+  model
+  plot(model)
+  model_list[[method]] <- model
+  p = predict(model, train_df)
+  confusionMatrix(p, train_df$diabetes_mellitus)
 }
+
+#### Compare models and summarize/visualize results
+# Pass model_list to resamples(): resamples
+resamp = resamples(model_list)
+# Summarize the results
+summary(resamp)
+dotplot(resamp, metric="ROC")
+xyplot(resamp, metric="ROC" )
+
+#### Make predictions
+final_model = glm_model
+test_df <- fread(file.path(data_dir, "UnlabeledWiDS2021.csv"))
+
+## Load and clean test data
+test_dat = test_df %>% select_at(c("encounter_id",selected_predictors))
+
+### FIXME do proper preprocessing and cleaning, same for train and test data
+
+## Make predictions and save csv
+submit_df <- f_save_submission_csv(test_dat, final_model)
+table(submit_df$diabetes_mellitus)
