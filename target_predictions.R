@@ -5,6 +5,9 @@
 # Created on: 2/18/2021
 ###----------------------------------------
 
+###----------------------------
+### SETTINGS
+###----------------------------
 ### Load packages
 library(tidyverse) # data handling using pipes
 library(data.table) # faster reading of csv files
@@ -26,9 +29,10 @@ train_df <- fread(file.path(data_dir, "TrainingWiDS2021_cleaned.csv"))
 train_df$diabetes_mellitus <- factor(train_df$diabetes_mellitus, levels=c('nodiabetes','diabetes'), labels=c('nodiabetes','diabetes'))
 target_var = 'diabetes_mellitus'
 
-### Additional reprocessing and variable selection
-### FIXME do proper preprocessing and cleaning, same for train and test data
-preprocess=TRUE ## Preprocessing handled in train function using caret
+###----------------------------
+###  PREPROCESSING
+###----------------------------
+preselect_predictors=TRUE ## Preprocessing handled in train function using caret
 if(preprocess){
   codebook <- fread(file.path(data_dir, "DataDictionaryWiDS2021.csv"))
   colnames(codebook) <- gsub(" ", "_", tolower(colnames(codebook)))
@@ -45,11 +49,21 @@ if(preprocess){
    }
 
 dim(train_df)
+train_df$diabetes_mellitus <- factor(train_df$diabetes_mellitus, levels=c(0,1), labels=c('nodiabetes','diabetes'))
+
+### CARET preprocessing
+### Select preprocessing steps and create preprocessing object to apply on train and test data
+preprocessing=c("zv","medianImpute")
+preProc <- preProcess(diabetes_mellitus_x, method =preprocessing)
+diabetes_mellitus_x <- predict(preProc,diabetes_mellitus_x )
+
 diabetes_mellitus_x <- train_df %>% select(-diabetes_mellitus)
 diabetes_mellitus_y <- train_df %>% select(diabetes_mellitus)
 diabetes_mellitus_y <- diabetes_mellitus_y$diabetes_mellitus
 
-### Caret package
+###----------------------------
+### CARET SETTINGS
+###----------------------------
 ### Get information about available methods
 names(getModelInfo())
 ### Get information about preprocessing options
@@ -66,13 +80,11 @@ myControl <- trainControl(
   index = myFolds
 )
 
-### --------------------
-###  Run and compare different model
+###----------------------------
+### TRAIN MODELS
 ### Note random Forest takes very long
 ### --------------------
 TEST=TRUE
-### Select preprocessing steps
-preprocessing=c("zv","medianImpute")
 
 methods = c("glm","glmnet","ranger")
 if(TEST)methods =methods[1]
@@ -86,14 +98,21 @@ for( method in methods){
   y = diabetes_mellitus_y,
   metric = "ROC",
   method = method,
-  trControl = myControl,
-  preProcess = preprocessing
+  trControl = myControl
 )
   model
   plot(model)
   model_list[[method]] <- model
-  p = predict(model, train_df)
-  confusionMatrix(p, train_df$diabetes_mellitus)
+  p = predict(model, train_df,type = "prob")
+  p_class <- ifelse(p > 0.5, "diabetes", "nodiabetes")
+  p_class <- factor(p_class, levels=c( "nodiabetes","diabetes"),
+                    labels=c("nodiabetes","diabetes"))
+  confusionMatrix(p_class, train_df$diabetes_mellitus)
+
+  ## Investigate caret objects
+  names(glm_model)
+  dim(diabetes_mellitus_x)
+  dim(model$trainingData)
 }
 
 #### Compare models and summarize/visualize results
@@ -104,15 +123,27 @@ summary(resamp)
 dotplot(resamp, metric="ROC")
 xyplot(resamp, metric="ROC" )
 
-#### Make predictions
-final_model = glm_model
+###----------------------------
+### MAKE PREDICTIONS
+###----------------------------
+final_model = glm_model ### Select best model
 test_df <- fread(file.path(data_dir, "UnlabeledWiDS2021.csv"))
 
 ## Load and clean test data
-test_dat = test_df %>% select_at(c("encounter_id",selected_predictors))
+test_dat = test_df %>% select_at(selected_predictors)
 
-### FIXME do proper preprocessing and cleaning, same for train and test data
+### Apply same preprocessing as for train data
+str(test_dat)
+test_dat_prep <- predict(preProc, test_dat)
+str(test_dat_prep)
 
 ## Make predictions and save csv
-submit_df <- f_save_submission_csv(test_dat, final_model)
-table(submit_df$diabetes_mellitus)
+submit_df <- f_predict_and_save_submission_csv(test_dat, final_model)
+summary(submit_df$diabetes_mellitus)
+
+### Compare prevalence to train predictions
+p_class_test <- ifelse(submit_df$diabetes_mellitus > 0.5, "diabetes", "nodiabetes")
+p_class_test <- factor(p_class_test, levels=c( "nodiabetes","diabetes"), labels=c("nodiabetes","diabetes"))
+
+(length(p_class_test[p_class_test=="diabetes"] )/ length(p_class_test))*100
+(length(p_class[p_class=="diabetes"] )/ length(p_class))*100

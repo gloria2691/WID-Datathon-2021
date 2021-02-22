@@ -90,14 +90,11 @@ p_bar_by_target <- function(dat=train_df,
 return(pbar)
 }
 
-f_save_submission_csv <- function(test_dat, final_model, fname="", SAVE_DIR=""){
-  test_dat$diabetes_mellitus = predict(final_model, test_dat)
-  submit_df <- test_dat %>%  select(encounter_id, diabetes_mellitus)
-  if("" %in% unique(test_dat$diabetes_mellitus)){
-  test_dat$diabetes_mellitus <- factor(test_dat$diabetes_mellitus,
-                                    levels=c("nodiabetes","diabetes"),
-                                    labels=c(0,1))
-  }
+f_predict_and_save_submission_csv <- function(test_dat, final_model, fname="", SAVE_DIR=""){
+
+  submit_df <- fread(file.path(data_dir, "SolutionTemplateWiDS2021.csv"))
+  submit_df$diabetes_mellitus = predict(final_model, test_dat,type = "prob")[1]
+
   #table(submit_df$diabetes_mellitus)
   if(SAVE_DIR==""){
     SAVE_DIR <- file.path(getwd(),"submit_csv")
