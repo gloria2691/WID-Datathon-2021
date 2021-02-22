@@ -32,7 +32,7 @@ target_var = 'diabetes_mellitus'
 ###----------------------------
 ###  PREPROCESSING
 ###----------------------------
-preselect_predictors=TRUE ## Preprocessing handled in train function using caret
+preselect_predictors=TRUE
 if(preprocess){
   codebook <- fread(file.path(data_dir, "DataDictionaryWiDS2021.csv"))
   colnames(codebook) <- gsub(" ", "_", tolower(colnames(codebook)))
@@ -53,12 +53,12 @@ train_df$diabetes_mellitus <- factor(train_df$diabetes_mellitus, levels=c(0,1), 
 
 ### CARET preprocessing
 ### Select preprocessing steps and create preprocessing object to apply on train and test data
-preprocessing=c("zv","medianImpute")
-preProc <- preProcess(diabetes_mellitus_x, method =preprocessing)
-diabetes_mellitus_x <- predict(preProc,diabetes_mellitus_x )
+preprocessing=c("zv", "knnImpute","center", "scale" , "corr") #c("zv", "medianImpute","center", "scale" , "pca")
+preProc <- preProcess(train_df, method =preprocessing)
+train_df_prep <- predict(preProc,train_df )
 
-diabetes_mellitus_x <- train_df %>% select(-diabetes_mellitus)
-diabetes_mellitus_y <- train_df %>% select(diabetes_mellitus)
+diabetes_mellitus_x <- train_df_prep %>% select(-diabetes_mellitus)
+diabetes_mellitus_y <- train_df_prep %>% select(diabetes_mellitus)
 diabetes_mellitus_y <- diabetes_mellitus_y$diabetes_mellitus
 
 ###----------------------------
