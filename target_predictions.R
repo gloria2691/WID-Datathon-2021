@@ -26,7 +26,7 @@ list.files(data_dir)
 
 ### Load data
 train_df <- fread(file.path(data_dir, "TrainingWiDS2021_cleaned.csv"))
-train_df <- f_variable_cleanup(train_df)
+#train_df <- f_variable_cleanup(train_df)
 train_df$diabetes_mellitus <- factor(train_df$diabetes_mellitus, levels=c('nodiabetes','diabetes'), labels=c('nodiabetes','diabetes'))
 target_var = 'diabetes_mellitus'
 
@@ -121,18 +121,27 @@ for( method in methods){
 
 #### Compare models and summarize/visualize results
 # Pass model_list to resamples(): resamples
-resamp = resamples(model_list)
-# Summarize the results
-summary(resamp)
-dotplot(resamp, metric="ROC")
-xyplot(resamp, metric="ROC" )
+if(length(model_list)> 1){
+  resamp = resamples(model_list)
+  # Summarize the results
+  summary(resamp)
+  dotplot(resamp, metric="ROC")
+  xyplot(resamp, metric="ROC" )
+}
 
 ###----------------------------
 ### MAKE PREDICTIONS
 ###----------------------------
-final_model = model_list['ranger'] ### Select best model
+
+if(length(model_list)==1){
+  final_model = model_list[[1]]
+}else{
+  final_model = model_list['ranger'] ### Select best model
+}
+
+
 test_df <- fread(file.path(data_dir, "UnlabeledWiDS2021.csv"))
-test_df <- f_variable_cleanup(test_df)
+#test_df <- f_variable_cleanup(test_df)
 test_df <- as.data.frame(test_df)
 test_df <- test_df[,colnames(test_df) %in% c(selected_predictors)]
 dim(test_df)
