@@ -69,6 +69,16 @@ df_summary_stats <- train_df_clean %>%
 df_variances <- df_summary_stats %>% filter(metric=="var" ) %>% arrange(value)
 summary(df_variances$value)
 ggplot(data=df_variances)+geom_point(aes(x=value, y=value, group = col))
+cols_highvariance <- df_variances %>% filter(value  > quantile(df_variances$value)[4]) %>% select(col)
+cols_highvariance <- cols_highvariance$col
+
+### Custom exploration
+ggplot(data=train_df_clean) +
+  geom_histogram(aes(x=pao2_apache, group=diabetes_mellitus,fill=as.factor(diabetes_mellitus)), alpha=0.7)
+ggplot(data=train_df_clean) +
+  geom_histogram(aes(x=h1_glucose_max, group=diabetes_mellitus,fill=as.factor(diabetes_mellitus)), alpha=0.7)
+tmp_df <- train_df_clean %>% filter(h1_glucose_max==max(train_df_clean$h1_glucose_max,na.rm = T))
+ dim(temp_df)
 
 ### Target variable
 train_df_clean$diabetes_mellitus <- factor(train_df_clean$diabetes_mellitus, levels=c(0,1), labels=c('nodiabetes','diabetes'))

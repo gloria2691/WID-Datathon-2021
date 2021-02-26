@@ -26,6 +26,7 @@ list.files(data_dir)
 
 ### Load data
 train_df <- fread(file.path(data_dir, "TrainingWiDS2021_cleaned.csv"))
+train_df <- f_variable_cleanup(train_df)
 train_df$diabetes_mellitus <- factor(train_df$diabetes_mellitus, levels=c('nodiabetes','diabetes'), labels=c('nodiabetes','diabetes'))
 target_var = 'diabetes_mellitus'
 
@@ -45,15 +46,17 @@ if(preprocess){
   #lab = c()
 
   selected_predictors = c(demographic, comorbidity) # cols_intstr$numeric
-  train_df = train_df %>% select_at(c(selected_predictors, target_var)) # %>% na.omit()
-   }
+  selected_predictors = c(demographic, cols_highvariance)
+  train_df <- as.data.frame(train_df)
+  #train_df = train_df %>% select_at(c(selected_predictors, target_var)) # %>% na.omit()
+  train_df <- train_df[,colnames(train_df) %in% c(selected_predictors,target_var)]
+  dim(train_df)
+}
 
 dim(train_df)
-train_df$diabetes_mellitus <- factor(train_df$diabetes_mellitus, levels=c(0,1), labels=c('nodiabetes','diabetes'))
-
 ### CARET preprocessing
 ### Select preprocessing steps and create preprocessing object to apply on train and test data
-preprocessing=c("zv", "knnImpute","center", "scale" , "corr") #c("zv", "medianImpute","center", "scale" , "pca")
+preprocessing=c("zv", "medianImpute","center", "scale" , "corr") #c("zv", "medianImpute","center", "scale" , "pca")
 preProc <- preProcess(train_df, method =preprocessing)
 train_df_prep <- predict(preProc,train_df )
 
@@ -87,7 +90,7 @@ myControl <- trainControl(
 TEST=TRUE
 
 methods = c("glm","glmnet","ranger")
-if(TEST)methods =methods[1]
+if(TEST)methods =methods[3]
 
 model_list <- list()
 for( method in methods){
@@ -101,16 +104,17 @@ for( method in methods){
   trControl = myControl
 )
   model
-  plot(model)
+  #plot(model)
   model_list[[method]] <- model
-  p = predict(model, train_df,type = "prob")
-  p_class <- ifelse(p > 0.5, "diabetes", "nodiabetes")
+  p = predict(model, train_df_prep,type = "prob")
+  dim(p)
+  p_class <- ifelse(p[,2] > 0.5, "diabetes", "nodiabetes")
   p_class <- factor(p_class, levels=c( "nodiabetes","diabetes"),
                     labels=c("nodiabetes","diabetes"))
-  confusionMatrix(p_class, train_df$diabetes_mellitus)
+  confusionMatrix(p_class, train_df_prep$diabetes_mellitus)
 
   ## Investigate caret objects
-  names(glm_model)
+  names(model)
   dim(diabetes_mellitus_x)
   dim(model$trainingData)
 }
@@ -126,24 +130,29 @@ xyplot(resamp, metric="ROC" )
 ###----------------------------
 ### MAKE PREDICTIONS
 ###----------------------------
-final_model = glm_model ### Select best model
+final_model = model_list['ranger'] ### Select best model
 test_df <- fread(file.path(data_dir, "UnlabeledWiDS2021.csv"))
-
+test_df <- f_variable_cleanup(test_df)
+test_df <- as.data.frame(test_df)
+test_df <- test_df[,colnames(test_df) %in% c(selected_predictors)]
+dim(test_df)
 ## Load and clean test data
-test_dat = test_df %>% select_at(selected_predictors)
+#test_dat = test_df %>% select_at(selected_predictors)
 
 ### Apply same preprocessing as for train data
 str(test_dat)
-test_dat_prep <- predict(preProc, test_dat)
+test_dat_prep <- predict(preProc, test_df)
 str(test_dat_prep)
 
 ## Make predictions and save csv
-submit_df <- f_predict_and_save_submission_csv(test_dat, final_model)
+submit_df <- f_predict_and_save_submission_csv(test_dat=test_dat_prep, final_model=final_model)
 summary(submit_df$diabetes_mellitus)
 
 ### Compare prevalence to train predictions
 p_class_test <- ifelse(submit_df$diabetes_mellitus > 0.5, "diabetes", "nodiabetes")
 p_class_test <- factor(p_class_test, levels=c( "nodiabetes","diabetes"), labels=c("nodiabetes","diabetes"))
+table(p_class_test)
 
+table(train_df_prep$diabetes_mellitus)
 (length(p_class_test[p_class_test=="diabetes"] )/ length(p_class_test))*100
 (length(p_class[p_class=="diabetes"] )/ length(p_class))*100
