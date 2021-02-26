@@ -12,12 +12,12 @@ f_cols_by_cat <- function(codebook=""){
   }
   ### Group variables by category
   #table(codebook$category)
-  category_labels = gsub(" ", "", unique(tolower(codebook$category)))
+  category_labels = gsub(" ", "", unique(tolower(codebook$Category)))
   cols_cat = list()
   for (i in c(1:length(category_labels))) {
-    category <- unique(codebook$category)[i]
+    category <- unique(codebook$Category)[i]
     category_label = category_labels[i]
-    cols_cat[[category_label]] <- codebook$variable_name[codebook$category == category]
+    cols_cat[[category_label]] <- codebook$variable_name[codebook$Category == Category]
   }
   return(cols_cat)
 }
@@ -109,3 +109,29 @@ f_save_submission_csv <- function(test_dat, final_model, fname="", SAVE_DIR=""){
   print(paste0("Submission csv saved under ", file.path(SAVE_DIR,fname)))
   return(submit_df)
 }
+
+impute_NA_mean <- function(coluna, class, out0, out1 ){
+  out <- coluna
+  for (i in 1:length(coluna)){
+    
+    if (is.na(coluna[i])){
+      
+      if (class[i] == 0){
+        out[i] <- out0
+        
+      }else {
+        out[i] <- out1
+        
+      }}
+  }
+  return(out)
+}
+
+
+
+mean_bytarget <- function(x,y){ by(x, x$diabetes_mellitus, function(y){
+  
+  mean.pl <- mean(y$d1_glucose_max, na.rm = TRUE)
+})
+}
+
