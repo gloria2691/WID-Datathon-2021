@@ -129,3 +129,28 @@ f_predict_and_save_submission_csv <- function(test_dat, final_model, fname="", S
   print(paste0("Submission csv saved under ", file.path(SAVE_DIR,fname)))
   return(submit_df)
 }
+impute_NA_mean <- function(coluna, class, out0, out1 ){
+  out <- coluna
+  for (i in 1:length(coluna)){
+    
+    if (is.na(coluna[i])){
+      
+      if (class[i] == 0){
+        out[i] <- out0
+        
+      }else {
+        out[i] <- out1
+        
+      }}
+  }
+  return(out)
+}
+
+
+
+mean_bytarget <- function(x,y){ by(x, x$diabetes_mellitus, function(y){
+  
+  mean.pl <- mean(y$d1_glucose_max, na.rm = TRUE)
+})
+}
+
