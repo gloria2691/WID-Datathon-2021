@@ -16,7 +16,6 @@ library(caTools) # confusion matrix table
 library(ranger) # faster implementation of randomForest
 
 ### Custom settings
-VIEW = FALSE  #TRUE
 source(file.path("functions.R"))
 
 # Define directories
@@ -46,7 +45,7 @@ comorbidity <- cols_cat$apachecomorbidity
 ###------------------------------------------------
 ### Different options for pre-selecting features
 ###------------------------------------------------
-# cols_highvariance <- fread(file.path(data_dir,"cols_highvariance.csv"))
+cols_highvariance <- fread(file.path(data_dir,"cols_highvariance.csv"))
 cols_highvariance <- cols_highvariance$cols_highvariance
 
 cols_highassociation <- c("age", "bmi", "height", "weight","glucose_apache", "d1_glucose_max",
