@@ -1,12 +1,12 @@
 # Title     : Women in data Science Datathon 2021
 # Objective : Classification Problem, predict diabetes yes/no
-# Team      : <team_name>
+# Team      : SuperSweet
 # Related rscripts: data_processing.R, target_prediction.R, functions.R
 # Created on: 2/18/2021
 ###----------------------------------------
 
-f_cols_by_cat <- function(codebook=""){
-  if(codebook==""){
+f_cols_by_cat <- function(){
+  if(!exists("codebook")){
     codebook <- fread(file.path(data_dir, "DataDictionaryWiDS2021.csv"))
     colnames(codebook) <- gsub(" ", "_", tolower(colnames(codebook)))
   }
@@ -90,10 +90,18 @@ p_bar_by_target <- function(dat=train_df,
   return(pbar)
 }
 
-f_predict_and_save_submission_csv <- function(test_dat, final_model, fname="", SAVE_DIR=""){
+f_predict_and_save_submission_csv <- function(test_dat, model_list, final_method, fname="", SAVE_DIR=""){
 
   submit_df <- fread(file.path(data_dir, "SolutionTemplateWiDS2021.csv"))
-  submit_df$diabetes_mellitus = predict(final_model, test_dat,type = "prob")$ranger$diabetes
+  submit_df <- submit_df %>% arrange(encounter_id)
+
+  if(length(model_list)==1){
+    final_model = model_list[[1]]
+    submit_df$diabetes_mellitus = predict(final_model, test_dat,type = "prob")$diabetes
+  }else{
+    final_model = model_list[final_method] ### Select best model
+    submit_df$diabetes_mellitus = as.data.frame(predict(final_model, test_dat,type = "prob"))[,2]
+  }
 
   #table(submit_df$diabetes_mellitus)
   if(SAVE_DIR==""){
@@ -125,9 +133,7 @@ impute_NA_mean <- function(coluna, class, out0, out1 ){
 }
 
 
-
 mean_bytarget <- function(x,y){ by(x, x$diabetes_mellitus, function(y){
-  
   mean.pl <- mean(y$d1_glucose_max, na.rm = TRUE)
 })
 }
