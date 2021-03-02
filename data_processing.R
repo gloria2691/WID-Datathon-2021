@@ -1,8 +1,8 @@
 # Title     : Women in data Science Datathon 2021
 # Objective : Classification Problem, predict diabetes yes/no
-# Team      : <team_name>
+# Team      : SuperSweet
 # Related rscripts: data_processing.R, target_prediction.R, functions.R
-# Created on: 2/18/2021
+# Created on: 2/18/2021, by Manuela Runge
 ###----------------------------------------
 
 ### Load packages
@@ -32,8 +32,6 @@ codebook <- codebook %>% filter(variable_name != vars_not_exist)
 if(VIEW)str(codebook)
 
 ###-------- PREPROCESSING AND DATA CLEANING ---------------------
-### FIXME do proper preprocessing and cleaning, same for train and test data
-
 dim(train_df)
 colnames(train_df)
 
@@ -50,7 +48,7 @@ cols_to_remove = c(cols_to_remove, "V1",id_vars,"icu_id")
 train_df_clean = train_df %>% select(-c(cols_to_remove)) %>% as.data.frame()
 
 ### Group variables by category and type
-cols_cat <- f_cols_by_cat(codebook)
+cols_cat <- f_cols_by_cat()
 cols_intstr <- f_get_cols_strint(train_df_clean)
 
 ### Declare factor variables
@@ -60,31 +58,43 @@ str(train_df_clean[,cols_intstr$character])
 
 ### Remove zero variance
 df_summary_stats <- train_df_clean %>%
-              select_at(cols_intstr$numeric) %>%
-              summarize_all(.funs=c("var","mean","median","min","max"), na.rm=TRUE)  %>%
-              mutate(dummy=1) %>%
-              pivot_longer(cols=-dummy) %>%
-              separate(name, into=c("col","metric"), sep="_(?!.*_)") %>%
-              arrange(metric, value)
-df_variances <- df_summary_stats %>% filter(metric=="var" ) %>% arrange(value)
+  select_at(cols_intstr$numeric) %>%
+  summarize_all(.funs=c("var","mean","median","min","max"), na.rm=TRUE)  %>%
+  mutate(dummy=1) %>%
+  pivot_longer(cols=-dummy) %>%
+  separate(name, into=c("col","metric"), sep="_(?!.*_)") %>%
+  arrange(metric, value)
+
+df_variances <- df_summary_stats %>%
+  filter(metric=="var" ) %>%
+  arrange(value)
+
 summary(df_variances$value)
 ggplot(data=df_variances)+geom_point(aes(x=value, y=value, group = col))
-cols_highvariance <- df_variances %>% filter(value  > quantile(df_variances$value)[4]) %>% select(col)
+
+cols_highvariance <- df_variances %>%
+  filter(value  > quantile(df_variances$value)[4]) %>%
+  select(col)
+
 cols_highvariance <- cols_highvariance$col
 
 ### Custom exploration
 ggplot(data=train_df_clean) +
-  geom_histogram(aes(x=pao2_apache, group=diabetes_mellitus,fill=as.factor(diabetes_mellitus)), alpha=0.7)
+  geom_histogram(aes(x=pao2_apache, group=diabetes_mellitus,fill=as.factor(diabetes_mellitus)), alpha=0.7) +
+  labs(fill="diabetes")
+
 ggplot(data=train_df_clean) +
-  geom_histogram(aes(x=h1_glucose_max, group=diabetes_mellitus,fill=as.factor(diabetes_mellitus)), alpha=0.7)
-tmp_df <- train_df_clean %>% filter(h1_glucose_max==max(train_df_clean$h1_glucose_max,na.rm = T))
- dim(temp_df)
+  geom_histogram(aes(x=h1_glucose_max, group=diabetes_mellitus,fill=as.factor(diabetes_mellitus)), alpha=0.7)+
+  labs(fill="diabetes")
+
+temp_df <- train_df_clean %>% filter(h1_glucose_max==max(train_df_clean$h1_glucose_max,na.rm = T))
+dim(temp_df)
 
 ### Target variable
 train_df_clean$diabetes_mellitus <- factor(train_df_clean$diabetes_mellitus, levels=c(0,1), labels=c('nodiabetes','diabetes'))
 
 ### Group variables by category
-cols_cat <- f_cols_by_cat(codebook)
+cols_cat <- f_cols_by_cat()
 if(VIEW)print(cols_cat)
 ### Group variables by type
 cols_intstr <- f_get_cols_strint(train_df_clean)
@@ -95,14 +105,12 @@ ints <- seq(1,length(cols_intstr$numeric),11)
 p_hist_by_target(dat=train_df_clean, selected_cols=cols_intstr$numeric[1:ints[2]],target_var = 'diabetes_mellitus')
 p_hist_by_target(dat=train_df_clean, selected_cols=cols_intstr$numeric[ints[2]:ints[3]],target_var = 'diabetes_mellitus')
 p_hist_by_target(dat=train_df_clean, selected_cols=cols_intstr$numeric[ints[3]:ints[4]],target_var = 'diabetes_mellitus')
-p_bar_by_target(dat=train_df_clean,selected_cols=cols_intstr$character,target_var = 'diabetes_mellitus')
 
 ### Explore by variable category
 #length(cols_cat$apachecomorbidity)
-p_hist_by_target(dat=train_df_clean, selected_cols=cols_cat$labsbloodgas,target_var = 'diabetes_mellitus')
-#p_bar_by_target(dat=train_df_clean,selected_cols=cols_cat$demographic,target_var = 'diabetes_mellitus')
+p_hist_by_target(dat=train_df_clean, selected_cols=cols_highvariance,target_var = 'diabetes_mellitus')
+p_bar_by_target(dat=train_df_clean,selected_cols=cols_cat$demographic,target_var = 'diabetes_mellitus')
 
 ### Save data
-## Note , multiple imputation, seletion  by variance or PCA included in train function when using CARET for model fitting
-### Other pre-processing steps center, scale (see caret package and target_predictions.R)
 fwrite(train_df_clean, file=file.path(data_dir, "TrainingWiDS2021_cleaned.csv"))
+fwrite(as.data.frame(cols_highvariance), file=file.path(data_dir, "cols_highvariance.csv"))
