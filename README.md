@@ -6,7 +6,7 @@ Datasets were downloaded from [widsdatathon2021/data](https://www.kaggle.com/c/w
 
 # Description of scripts
 The repository includes two workstreams, one for data cleaning,  explorative data analsyis and predictions (1 to 6) and one for data description, and more automated processing workflow using the [caret package](https://cran.r-project.org/web/packages/caret/vignettes/caret.html) in R.
-Both workstreams use functions from the functions.R script and assume data is available from a download_dat folder within the repository (not version controlled).
+Both workstreams use functions from the `functions.R` script and assume data is available from a download_dat folder within the repository (not version controlled).
 
 ## Data cleaning, EDA and predictions
 - `01- dataProcessing.R`
@@ -19,6 +19,5 @@ Both workstreams use functions from the functions.R script and assume data is av
 ## Caret workflow
 - `data_processing.R`
 - `target_predictions.R`
-
 
 
